@@ -1,0 +1,8 @@
+# Generated build outputs
+/build/
+/Debug/
+
+# Local IDE/runtime noise
+*.launches
+*.log
+*.tmp
