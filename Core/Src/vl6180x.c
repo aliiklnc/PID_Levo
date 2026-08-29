@@ -58,7 +58,7 @@ static const vl_reg_t k_tuning[] =
 static const vl_reg_t k_defaults[] =
 {
   {REG_SYSTEM_MODE_GPIO1,             0x10}, /* GPIO1 = sample ready cikisi   */
-  {REG_READOUT_AVERAGING_SAMPLE_PER,  0x30}, /* varsayilan ortalama periyodu  */
+  {REG_READOUT_AVERAGING_SAMPLE_PER,  0x18}, /* olculen hizli/kararli ayar     */
   {REG_SYSALS_ANALOGUE_GAIN,          0x46},
   {REG_SYSRANGE_VHV_REPEAT_RATE,      0xFF}, /* periyodik otomatik VHV kalib. */
   {REG_SYSALS_INTEGRATION_PERIOD,     0x63},

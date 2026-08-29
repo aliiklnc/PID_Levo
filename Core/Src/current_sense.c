@@ -18,6 +18,8 @@ static volatile uint16_t s_raw[ADC_CH_COUNT];
 static float s_zero_a[BTS_CH_COUNT];   /* kanal basina sifir ofseti, amper */
 static float s_curr_a[BTS_CH_COUNT];   /* filtrelenmis akim                */
 static float s_vbus_v;
+static uint32_t s_dma_tick;
+static uint8_t  s_dma_seen;
 
 /* Tek kutuplu IIR: y += alpha*(x-y). 1 kHz cagri ve alpha=0.2 -> ~0.8 ms
    zaman sabiti. Trip karari filtresiz degerden verilir, bu yuzden filtre
@@ -43,6 +45,8 @@ HAL_StatusTypeDef CS_Init(void)
   for (i = 0U; i < ADC_CH_COUNT; i++) { s_raw[i] = 0U; }
   for (i = 0U; i < BTS_CH_COUNT; i++) { s_zero_a[i] = 0.0f; s_curr_a[i] = 0.0f; }
   s_vbus_v = 0.0f;
+  s_dma_tick = 0UL;
+  s_dma_seen = 0U;
 
   /* Yeniden cagrilabilir olsun (bobin testinden sonra gerekiyor). */
   (void)HAL_TIM_Base_Stop(&htim2);
@@ -64,6 +68,9 @@ HAL_StatusTypeDef CS_Init(void)
      olusur (40 kHz'de 80 bin/s) ve CPU bosuna yanar. */
   __HAL_DMA_DISABLE_IT(&hdma_adc1, DMA_IT_TC | DMA_IT_HT | DMA_IT_TE | DMA_IT_DME);
   HAL_NVIC_DisableIRQ(DMA2_Stream0_IRQn);
+  __HAL_DMA_CLEAR_FLAG(&hdma_adc1, DMA_FLAG_FEIF0_4 | DMA_FLAG_DMEIF0_4 |
+                                    DMA_FLAG_TEIF0_4 | DMA_FLAG_HTIF0_4  |
+                                    DMA_FLAG_TCIF0_4);
 
   /* ADC harici tetikte; TIM2 TRGO baslamadan tek bir donusum bile olmaz. */
   if (HAL_TIM_Base_Start(&htim2) != HAL_OK)
@@ -80,7 +87,7 @@ void CS_ZeroCalibrate(void)
   uint16_t n;
   uint8_t  ch;
 
-  /* 200 tarama ~ 5 ms. DMA arka planda dondugu icin sadece bekleyip
+  /* 200 okuma ~ 200 ms. DMA arka planda dondugu icin sadece bekleyip
      okumak yeterli. */
   for (n = 0U; n < 200U; n++)
   {
@@ -98,6 +105,17 @@ void CS_Update(void)
   uint8_t ch;
   float   a;
 
+  /* Kesme kullanmadan DMA ilerlemesini izle. Stream0 dairesel tamponu
+     her taramada TC bayragini yeniden set eder; kontrol dongusu bunu
+     gorup temizleyerek son gercek veri zamanini kanitlar. */
+  if ((__HAL_DMA_GET_FLAG(&hdma_adc1, DMA_FLAG_HTIF0_4) != RESET) ||
+      (__HAL_DMA_GET_FLAG(&hdma_adc1, DMA_FLAG_TCIF0_4) != RESET))
+  {
+    __HAL_DMA_CLEAR_FLAG(&hdma_adc1, DMA_FLAG_HTIF0_4 | DMA_FLAG_TCIF0_4);
+    s_dma_tick = HAL_GetTick();
+    s_dma_seen = 1U;
+  }
+
   for (ch = 0U; ch < BTS_CH_COUNT; ch++)
   {
     a = raw_to_amp(s_raw[ch]) - s_zero_a[ch];
@@ -106,6 +124,12 @@ void CS_Update(void)
   }
   s_vbus_v += IIR_ALPHA * ((adc_to_volt(s_raw[ADC_IDX_VBUS])
                             * VBUS_DIVIDER_RATIO) - s_vbus_v);
+}
+
+uint8_t CS_IsFresh(void)
+{
+  if (s_dma_seen == 0U) { return 0U; }
+  return ((HAL_GetTick() - s_dma_tick) <= ADC_DATA_TIMEOUT_MS) ? 1U : 0U;
 }
 
 float CS_GetCurrent(uint8_t ch)

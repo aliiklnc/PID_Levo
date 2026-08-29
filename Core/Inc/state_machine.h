@@ -66,6 +66,7 @@ typedef enum
 #define SM_F_SELFTEST         (1UL << 8)  /* acilis testi basarisiz         */
 #define SM_F_WATCHDOG_RESET   (1UL << 9)  /* onceki cevrim IWDG ile resetlendi */
 #define SM_F_DRIVER_INIT      (1UL << 10) /* BTS7960 / ADC baslatilamadi    */
+#define SM_F_ADC_TIMEOUT      (1UL << 11) /* ADC DMA verisi yenilenmiyor    */
 
 void SM_Init(void);
 

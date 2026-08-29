@@ -196,11 +196,22 @@ static uint32_t check_hazards(uint32_t now, uint8_t outputs_live)
     if (s_gap_mm > (GAP_TARGET_MM * 4.0f)) { f |= SM_F_GAP_MAX; }
   }
 
+  /* --- ADC/DMA tazeligi ---
+     Eski ama sayisal olarak makul bir ADC degeriyle guvenlik karari
+     verilmez. Akim ve gerilim denetimleri yalniz taze veriyle yapilir. */
+  if (CS_IsFresh() == 0U)
+  {
+    f |= SM_F_ADC_TIMEOUT;
+    s_oc_since = 0UL;
+    s_uv_since = 0UL;
+  }
+
   /* --- akim (3.q) ---
      Zirve kaydi TUM kanallar icin yapilir; asim zamanlayicisi ise "su an
      herhangi bir kanal limitin ustunde mi" bilgisine bakar. Zamanlayiciyi
      hata bitine bakarak sifirlamak, trip suresi dolmadan her cevrimde
      sayaci sifirlar ve asim hicbir zaman tetiklenmezdi. */
+  if ((f & SM_F_ADC_TIMEOUT) == 0UL)
   {
     uint8_t over = 0U;
     for (ch = 0U; ch < BTS_CH_COUNT; ch++)
@@ -221,16 +232,19 @@ static uint32_t check_hazards(uint32_t now, uint8_t outputs_live)
   }
 
   /* --- bus gerilimi (3.s) --- */
-  v = CS_GetBusVoltage();
-  if ((v < VBUS_MIN_V) || (v > VBUS_MAX_V))
+  if ((f & SM_F_ADC_TIMEOUT) == 0UL)
   {
-    if (s_uv_since == 0UL) { s_uv_since = now; }
-    else if ((now - s_uv_since) >= VBUS_TRIP_MS)
+    v = CS_GetBusVoltage();
+    if ((v < VBUS_MIN_V) || (v > VBUS_MAX_V))
     {
-      f |= (v < VBUS_MIN_V) ? SM_F_UNDERVOLTAGE : SM_F_OVERVOLTAGE;
+      if (s_uv_since == 0UL) { s_uv_since = now; }
+      else if ((now - s_uv_since) >= VBUS_TRIP_MS)
+      {
+        f |= (v < VBUS_MIN_V) ? SM_F_UNDERVOLTAGE : SM_F_OVERVOLTAGE;
+      }
     }
+    else { s_uv_since = 0UL; }
   }
-  else { s_uv_since = 0UL; }
 
   /* --- yer istasyonu (EK1-3.4) --- */
   if ((s_gs_seen != 0U) && ((now - s_gs_ms) > GS_TIMEOUT_MS))
@@ -243,7 +257,7 @@ static uint32_t check_hazards(uint32_t now, uint8_t outputs_live)
 
 /* Guc sinifi hatalar: hemen kes. Bunlar icin kontrollu inis yapilamaz,
    cunku kopruye guvenemeyiz. */
-#define SM_F_HARD   (SM_F_OVERCURRENT | SM_F_OVERVOLTAGE | SM_F_DRIVER_INIT)
+#define SM_F_HARD   (SM_F_OVERCURRENT | SM_F_OVERVOLTAGE | SM_F_DRIVER_INIT | SM_F_ADC_TIMEOUT)
 
 /* Yumusak hatalar: kontrollu inis denenir (sartname 3.s / 3.p). */
 #define SM_F_SOFT   (SM_F_SENSOR_TIMEOUT | SM_F_GAP_MIN | SM_F_GAP_MAX | \
@@ -255,6 +269,8 @@ void SM_Task(void)
   const float    dt  = (float)CTRL_PERIOD_MS * 0.001f;
   uint32_t       hz;
   uint8_t        ch;
+  uint8_t        any_live;
+  float          duty;
   float          p;
 
   iwdg_refresh();
@@ -275,9 +291,16 @@ void SM_Task(void)
       if ((now - s_state_ms) >= 100UL)
       {
         float v = CS_GetBusVoltage();
-        if ((v < VBUS_MIN_V) || (v > VBUS_MAX_V))
+        if (CS_IsFresh() == 0U)
         {
-          s_faults |= SM_F_SELFTEST | SM_F_UNDERVOLTAGE;
+          s_faults |= SM_F_SELFTEST | SM_F_ADC_TIMEOUT;
+          enter(SM_FAULT);
+        }
+        else if ((v < VBUS_MIN_V) || (v > VBUS_MAX_V))
+        {
+          s_faults |= SM_F_SELFTEST |
+                      ((v < VBUS_MIN_V) ? SM_F_UNDERVOLTAGE
+                                        : SM_F_OVERVOLTAGE);
           enter(SM_FAULT);
         }
         else
@@ -356,8 +379,19 @@ void SM_Task(void)
       hz = check_hazards(now, 1U);
       if ((hz & SM_F_HARD) != 0UL) { fault(hz & SM_F_HARD); break; }
 
-      s_ramp_duty -= LANDING_RATE * dt;
-      if (s_ramp_duty <= 0.0f)
+      /* Her kanali kendi mevcut duty degerinden indir. LEVITATING ileride
+         kanal basina PID duty yazdiginda ortak s_ramp_duty degerine donmek
+         ani bir cikis sicramasi olustururdu. */
+      any_live = 0U;
+      for (ch = 0U; ch < BTS_CH_COUNT; ch++)
+      {
+        duty = BTS_GetDuty(ch) - (LANDING_RATE * dt);
+        if (duty <= 0.0f) { duty = 0.0f; }
+        else              { any_live = 1U; }
+        BTS_SetDuty(ch, duty);
+      }
+
+      if (any_live == 0U)
       {
         s_ramp_duty = 0.0f;
         BTS_AllOff();
@@ -367,8 +401,6 @@ void SM_Task(void)
         else                 { enter(SM_IDLE);  }
         break;
       }
-      BTS_SetDutyAll(s_ramp_duty);
-
       if ((now - s_state_ms) > LANDING_TIMEOUT_MS)
       {
         SM_LatchShutdown(0UL);   /* rampa takildi: guvenli tarafta kal */
@@ -381,8 +413,9 @@ void SM_Task(void)
       /* Ayni hata siniflari SAFE_SHUTDOWN'a mandallanir: sensor arizasi
          veya asiri akim varken tekrar kalkis denemesine izin verilmez
          (sartname 3.p). */
-      if ((s_faults & (SM_F_OVERCURRENT | SM_F_SENSOR_TIMEOUT |
-                       SM_F_DRIVER_INIT)) != 0UL)
+      if ((s_faults & (SM_F_OVERCURRENT | SM_F_OVERVOLTAGE |
+                       SM_F_SENSOR_TIMEOUT | SM_F_DRIVER_INIT |
+                       SM_F_ADC_TIMEOUT)) != 0UL)
       {
         SM_LatchShutdown(0UL);
       }

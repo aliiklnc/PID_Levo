@@ -59,6 +59,10 @@ extern I2C_HandleTypeDef hi2c1;
    (10 ms) uretiyor, 4 ms'lik ziyaret araligi rahatlikla yetisir. */
 #define GAP_POLL_STEP_MS        1U
 
+/* Estimator iki sensorle sinirli bir teshis sonucu uretebilir; ancak
+   kontrol/safety zinciri icin bir duzlemi belirleyen en az 3 nokta gerekir. */
+#define EST_MIN_CONTROL_SENSORS 3U
+
 /* ============================ Hava araligi ============================= */
 /* TOF050C (VL6180X) modulunun olu bolgesi 0-20 mm oldugu icin sensor,
    ray yuzeyinden geriye kacirilarak monte edilir:
@@ -129,6 +133,7 @@ extern I2C_HandleTypeDef hi2c1;
    25 us'lik pencereye rahat sigar. */
 #define ADC_TRIG_HZ             40000U
 #define ADC_TRIG_ARR            ((84000000U / ADC_TRIG_HZ) - 1U)
+#define ADC_DATA_TIMEOUT_MS     10U
 
 /* Akim algilama: BTS7960 IS pini bir akim kaynagidir (I_yuk / 8500).
    GND'ye baglanan direnc onu gerilime cevirir.

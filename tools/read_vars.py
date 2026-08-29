@@ -41,6 +41,7 @@ KIND = {
     "g_range_mm": "u", "g_range_status": "u", "g_gap_mm": "f",
     "g_ok_count": "u", "g_sample_hz": "u", "g_i2c_err_count": "u",
     "g_sensor_present": "u", "g_scan_root_n": "u", "g_scan_ch0_n": "u",
+    "g_scan_root": "u8", "g_scan_ch0": "u8",
     "g_stat_mean": "f", "g_stat_std": "f", "g_stat_pp": "u", "g_stat_n": "u",
     "uwTick": "u",
 }
@@ -111,14 +112,18 @@ def main():
     for n in names:
         addr, size = tab[n]
         kind = KIND.get(n, "u")
-        if kind.startswith("f4"):
-            v = [struct.unpack("<f", raw(addr + 4 * i, 4))[0] for i in range(4)]
+        array_kind = re.fullmatch(r"([fu])(\d+)(?::(\d+))?", kind)
+        if array_kind and array_kind.group(1) == "f":
+            count = int(array_kind.group(2))
+            v = [struct.unpack("<f", raw(addr + 4 * i, 4))[0]
+                 for i in range(count)]
             print(f"{n:18s} = [" + ", ".join(f"{x:8.3f}" for x in v) + "]")
-        elif kind.startswith("u4:2"):
-            v = [int.from_bytes(raw(addr + 2 * i, 2), "little") for i in range(4)]
+        elif array_kind:
+            count = int(array_kind.group(2))
+            width = int(array_kind.group(3) or 1)
+            v = [int.from_bytes(raw(addr + width * i, width), "little")
+                 for i in range(count)]
             print(f"{n:18s} = {v}")
-        elif kind.startswith("u4"):
-            print(f"{n:18s} = {list(raw(addr, 4))}")
         elif kind == "f":
             print(f"{n:18s} = {struct.unpack('<f', raw(addr, 4))[0]:.3f}")
         else:

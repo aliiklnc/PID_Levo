@@ -125,7 +125,7 @@ static void poll_channel(uint8_t ch)
 
 void GapSensor_Task(void)
 {
-  const uint32_t now = HAL_GetTick();
+  uint32_t now;
   uint8_t tries;
   uint8_t ch;
 
@@ -141,6 +141,11 @@ void GapSensor_Task(void)
       break;
     }
   }
+
+  /* poll_channel() last_tick'i daha yeni bir HAL tick degeriyle yazabilir.
+     Simdi yeniden okumak unsigned cikarmada tek cevrimlik sahte timeout'u
+     onler. */
+  now = HAL_GetTick();
 
   /* Zaman asimi denetimi ve 1 saniyelik hiz penceresi */
   for (ch = 0U; ch < GAP_CH_COUNT; ch++)

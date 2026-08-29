@@ -360,6 +360,24 @@ g_est_valid     = 1
 g_est_n_used    = 4
 ```
 
+2026-08-29 güvenlik düzeltmelerinden sonra firmware yeniden derlendi, SWD ile
+yüklendi ve aynı masa düzeneğinde tekrar doğrulandı:
+
+    g_levitate_req   = 0
+    g_coil_run_count = 0
+    g_gap_found      = 4
+    g_gap_valid_n    = 4
+    g_gap_fault      = [0, 0, 0, 0]
+    g_gap_hz         = [100, 100, 100, 99]
+    g_i2c_err_count  = 0
+    g_est_valid      = 1
+    g_est_n_used     = 4
+    g_sm_faults      = 0x0110
+
+0x0110, güç busı bağlı olmadığı için beklenen SELFTEST | UNDERVOLTAGE
+sonucudur. Yeni ADC_TIMEOUT biti set olmadı; ADC/DMA veri tazeliği kartta
+kanıtlandı. Bobin ve BTS7960 çıkışları sürülmedi.
+
 Fiziksel kanal eşlemesi tek tek cisim yaklaştırılarak kanıtlandı:
 
 | Fiziksel köşe | Referans `g_gap_raw` | Cisim yaklaştırılınca | Değişen indeks |
@@ -509,6 +527,8 @@ I²C adres tarayıcı, takılan hattı 9 SCL darbesiyle kurtarma (`I2CBus_Recove
 ### 11.3 `vl6180x.c`
 MODEL_ID doğrulama (0xB4), AN4545 zorunlu 30 girişlik tuning dizisi, sürekli mod,
 yoklamalı okuma, 15 hata kodunun ayrıştırılması.
+Varsayılan çalışma ayarı, ölçümle seçilen AVG 0x18 + 10 ms yakınsama + 10 ms
+ölçümler arası periyot ile kaynakta eşitlendi.
 
 **Sakinleştirme adımı:** init önce sürekli modu durdurur, kesmeleri temizler ve
 `Device_Ready` bekler (200 ms). Bu olmadan, önceki çevrimden sürekli modda kalmış bir sensöre
@@ -535,6 +555,9 @@ gürültü bırakırdı ama getirdiği gecikme kararsız tesisi kontrol edilemez
   bir sensör düşünce levitasyonu kesmek gerekmiyor.*
 - **2 sensör aynı eksende:** o eksenin eğimi çözülür (ön çift → roll, yan çift → pitch), diğeri 0
 - **2 sensör çapraz / 1 sensör:** `valid = 0`, yalnız ortalama heave verilir
+
+İki aynı eksenli sensör sonucu teşhis için geçerli kalır; fakat kontrol/emniyet
+zincirine heave aktarılması için EST_MIN_CONTROL_SENSORS = 3 şarttır.
 
 Geometri `GEOM_HALF_LENGTH_MM = 200`, `GEOM_HALF_WIDTH_MM = 150` **varsayım**.
 Yanlış değer heave'i etkilemez, sadece açıları ölçekler. **Ölçülüp düzeltilecek.**
@@ -567,8 +590,9 @@ Hata bitleri (`g_sm_faults`):
 | 8 | 0x100 | SELFTEST |
 | 9 | 0x200 | WATCHDOG_RESET (önceki çevrim IWDG ile resetlendi) |
 | 10 | 0x400 | DRIVER_INIT |
+| 11 | 0x800 | ADC_TIMEOUT (DMA verisi yenilenmiyor) |
 
-**Sert hatalar** (OVERCURRENT / OVERVOLTAGE / DRIVER_INIT) → anında kesme, köprüye güvenilmez.
+**Sert hatalar** (OVERCURRENT / OVERVOLTAGE / DRIVER_INIT / ADC_TIMEOUT) → anında kesme, köprüye güvenilmez.
 **Yumuşak hatalar** (sensör, aralık, düşük gerilim, yer istasyonu) → kontrollü iniş (`LANDING`).
 `SAFE_SHUTDOWN` mandallıdır, yalnız donanım resetiyle çıkılır.
 
@@ -592,11 +616,18 @@ Sıra önemli: önce CCR sıfırlanır, sonra EN düşer.
 `current_sense` 5 kanalı 40 kHz'de dairesel DMA ile okur, tamponu doğrudan okur.
 `CS_ZeroCalibrate()` çıkışlar kapalıyken sıfır noktasını ölçer (~200 ms).
 `CS_Init()` yeniden çağrılabilir (bobin testinden sonra gerekiyor).
+DMA half/full bayrakları kesmesiz olarak izlenir; veri 10 ms boyunca yenilenmezse
+CS_IsFresh() sıfır olur ve durum makinesi sert ADC_TIMEOUT hatasıyla çıkışı keser.
 
 ### 11.7 `coil_test.c`
 Bobin R/L karakterizasyonu: 2 ms taban çizgisi → 12 ms tam gerilim → kesme → sönüm eğrisi,
 hepsi 100 kHz'de RAM'e (`g_coil_cap`, 2048 çift: çift indeks IS, tek indeks VBUS).
 Aşırı akımda (9 A) anında durur.
+
+HAL_ADC_Start_DMA sonrasında Stream0 kesmeleri, TIM2 başlamadan önce tekrar
+kapatılır. Böylece boş DMA ISR'sinin bayrağı temizlemeden kesme fırtınasına girip
+bobin darbesini açık bırakma riski giderildi. Bu yol yalnız statik analiz ve
+derlemeyle doğrulandı; fiziksel bobin testi yapılmadı.
 
 **Güvenlik kapıları:** mavi butonu basılı tutarak reset **veya** `g_coil_arm = 0xA5`.
 Başka hiçbir koşulda çıkış sürülmez. Toplam enerji ~0.7 J.
@@ -616,6 +647,10 @@ CubeMX yapılandırmasına dönülür (§14.3).
   `found=4`, `valid=4`, kanal başına 98–103 Hz, `est_valid=1`, `n_used=4`, I²C hatası 0
 - **Dört köşe kanal testi:** tek tek fiziksel cisimle doğrulandı — `0=FL, 1=FR, 2=RL, 3=RR`
 - **Aşama 3:** `bts7960` + `current_sense` + `state_machine` + IWDG — derleme uyarısız
+- Güvenlik sertleştirmesi: ADC/DMA tazelik denetimi, bobin testi DMA IRQ kapısı,
+  minimum 3 sensör kontrol kapısı ve kanal bazlı LANDING rampası eklendi.
+  Normal ve katı uyarılı derleme temiz; sensör/ADC yolu gerçek kartta doğrulandı,
+  fiziksel bobin testi yapılmadı.
 - Sensör karakterizasyonu (§8), kararlılık analizi (§9), hızlı sensör kararı (§10)
 - Komut satırı derleme/yükleme/okuma zinciri (`tools/`)
 
@@ -686,6 +721,8 @@ Artık yalnızca test istendiğinde çağrılıyor ve sonrasında CubeMX yapıla
 Tampon dairesel ve doğrudan okunuyor; TC+HT açık bırakılırsa tetik başına iki kesme oluşur.
 100 kHz'lik yanlış tetikle birlikte **saniyede 200 bin kesme** oldu ve ana döngü açılışı
 hiç bitiremedi. Teşhis yöntemi: PC'yi 8 kez örnekle, hepsi aynı ISR'de çıkıyorsa fırtına var.
+Normal current_sense yolu gibi coil_test yolu da HAL_ADC_Start_DMA çağrısından hemen sonra
+TC/HT/TE/DME kesmelerini kapatmalı ve DMA2_Stream0 NVIC hattını susturmalıdır.
 
 ### 14.5 VL6180X, MCU resetinden **etkilenmez**
 Önceki çevrimden sürekli modda kalabilir ve o haldeyken yapılandırma yazmalarını sessizce

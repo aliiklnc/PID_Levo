@@ -229,6 +229,14 @@ void CoilTest_Run(void)
     g_coil_res.state = COIL_TEST_ERR_INIT;
     return;
   }
+
+  /* MX_DMA_Init Stream0 IRQ'sini etkinlestirir; fakat bu test DMA tamponunu
+     yoklayarak okur ve ISR kullanmaz. HAL_ADC_Start_DMA kesmeleri yeniden
+     actigi icin TIM2'den ONCE kapatmak zorunludur; aksi halde bos ISR,
+     bayragi temizlemeden sonsuz kesme dongusune girebilir. */
+  __HAL_DMA_DISABLE_IT(&hdma_adc1, DMA_IT_TC | DMA_IT_HT | DMA_IT_TE | DMA_IT_DME);
+  HAL_NVIC_DisableIRQ(DMA2_Stream0_IRQn);
+
   if (HAL_TIM_Base_Start(&htim2_trg) != HAL_OK)
   {
     HAL_ADC_Stop_DMA(&hadc1_cap);

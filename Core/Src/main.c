@@ -583,7 +583,7 @@ int main(void)
       /* Durum makinesi duzlem cozulebildigi surece merkez hava araligiyla
          beslenir. Cozulemiyorsa hic beslenmez ve SENSOR_TIMEOUT devreye
          girer -- sessizce eski degerle devam etmek tehlikeli olurdu. */
-      if (e->valid != 0U)
+      if ((e->valid != 0U) && (e->n_used >= EST_MIN_CONTROL_SENSORS))
       {
         SM_ReportGap(e->heave_mm, 1U);
       }
@@ -608,6 +608,10 @@ int main(void)
             w_sumsq += (uint32_t)g0->raw_mm * g0->raw_mm;
             w_n++;
           }
+          if ((g0->samples % 25U) == 0U)
+          {
+            HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+          }
         }
       }
 
@@ -623,10 +627,6 @@ int main(void)
       else
       {
         HAL_GPIO_WritePin(LD5_GPIO_Port, LD5_Pin, GPIO_PIN_RESET);
-        if ((g_ok_count % 25U) == 0U)
-        {
-          HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
-        }
       }
       HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin,
                         (g_gap_valid_n < g_gap_found) ? GPIO_PIN_SET

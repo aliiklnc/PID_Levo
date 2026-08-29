@@ -32,6 +32,8 @@ void CS_ZeroCalibrate(void);
 /* Filtrelenmis degerleri gunceller. Kontrol dongusu hizinda cagrilir. */
 void CS_Update(void);
 
+/* DMA en az bir tam/yarim tampon yazdi ve veri halen taze mi? */
+uint8_t  CS_IsFresh(void);
 float    CS_GetCurrent(uint8_t ch);   /* amper, ofset dusulmus, filtreli */
 float    CS_GetCurrentRaw(uint8_t ch);/* amper, filtresiz (trip icin)    */
 float    CS_GetBusVoltage(void);      /* volt                            */
