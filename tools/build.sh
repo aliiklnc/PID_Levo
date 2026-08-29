@@ -2,14 +2,13 @@
 # PID_Levo - komut satiri derleme (CubeIDE'nin kendi ARM GCC'si ile)
 set -e
 
-PRJ="/c/STM32Projects/PID_Levo"
 TC="/c/ST/STM32CubeIDE_2.2.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.100.202602081740/tools/bin"
 GCC="$TC/arm-none-eabi-gcc.exe"
 OBJCOPY="$TC/arm-none-eabi-objcopy.exe"
 SIZE="$TC/arm-none-eabi-size.exe"
 BUILD="${1:-build}"
 
-cd "$PRJ"
+cd "$(dirname "$0")/.."
 mkdir -p "$BUILD"
 
 INC="-ICore/Inc \
