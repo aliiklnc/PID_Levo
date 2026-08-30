@@ -1,6 +1,6 @@
 # PID_Levo — Proje Devir Teslim Belgesi
 
-**Son güncelleme:** 2026‑08‑29
+**Son güncelleme:** 2026‑08‑30
 
 > Bu belge, projeyi hiç bilmeyen birinin (veya yeni bir sohbet oturumunun) sıfırdan
 > devralabilmesi için yazıldı. Sırayla okunduğunda: ne yapıldığı, neden öyle yapıldığı,
@@ -46,7 +46,9 @@ Yani hedef "bir PID döngüsü" değil: **durum makinesi + kestirim + kontrol ta
 | Güç sürücüsü | 4 × BTS7960 / IBT‑2 H‑köprü | ⛔ henüz bağlanmadı |
 | IMU | **BNO055** (Boardoza breakout) | ⛔ bağlanmadı, sürücü yazılmadı |
 | Batarya | 8S **LiFePO4** (20.0–29.2 V, nominal 25.6 V) | ⛔ bağlanmadı |
-| Mıknatıs | 4 adet, 600 sarım, 1 mm tel, 30 mm çekirdek | ⛔ ölçülmedi |
+| Laboratuvar güç kaynağı | SUNLINE U203, 0–30 V / 0–10 A, akım sınırlamalı | ✅ elde |
+| Osiloskop | FNIRSI 1014D, iki kanal | ✅ elde, PE9 PWM testinde kullanıldı |
+| Mıknatıs/bobin | Tasarım: 4 adet, 600 sarım, 1 mm tel, 30 mm çekirdek | ⛔ test tezgâhında bobin yok, ölçülmedi |
 | Şasi | 40 kg, hedef hava aralığı 5 mm (kararı §9.3) | — |
 
 ### Alınmayacak
@@ -395,6 +397,51 @@ fazla yaklaştırmak ölü bölgeye sokup `16 mm` civarında donmuş gibi görü
 Esnek kartonla alınan ilk heave/roll/pitch düzlem ölçümü **geçersiz sayıldı** ve sonuç
 olarak kullanılmayacak. Test 2, dört sensörü örten sert ve düz bir plakayla yeniden yapılacak.
 
+### 8.5 Oturum açılışı ve PE9 PWM doğrulaması (2026-08-30)
+
+Firmware temiz çalışma ağacından yeniden derlendi; `build/PID_Levo.elf` üretildi,
+SWD ile yüklendi ve `Download verified successfully` alındı. Sert plaka sabitken
+alınan başlangıç canlı durumu:
+
+```
+g_sm_state       = 6 (FAULT)
+g_sm_faults      = 0x0110
+g_vbus_v         = 8.006 V       (VBUS bölücüsü bağlı değil; geçerli bus ölçümü değil)
+g_gap_found      = 4
+g_gap_valid_n    = 4
+g_gap_present    = [1, 1, 1, 1]
+g_gap_fault      = [0, 0, 0, 0]
+g_gap_raw        = [46, 48, 43, 46]
+g_gap_hz         = [100, 99, 100, 103]
+g_est_valid      = 1
+g_est_n_used     = 4
+g_heave_mm       = 19.750
+g_roll_mrad      = -8.333
+g_pitch_mrad     = 1.250
+g_est_resid_mm   = 0.250
+g_i2c_err_count  = 0
+```
+
+Estimatorin hareket/işaret testi kullanıcı isteğiyle burada durdurulup BTS7960
+hazırlığına geçildi. Bobin ve BTS7960 güç katı bu ölçümde enerjilendirilmedi.
+
+TIM1_CH1 / PE9 sinyali, BTS ve güç kaynağı bağlı değilken debug altında güvenli
+olarak `%50` duty'ye getirildi. FNIRSI 1014D ile kare dalga gözlendi:
+
+| Ölçüm | Sonuç |
+|---|---:|
+| Frekans | **20 kHz** |
+| Duty | **%50** |
+| Multimetre DC ortalaması | **1.478 V** |
+| Mantık seviyesi | yaklaşık 0–2.9 V |
+
+Sonuç: `.ioc` pin eşlemesi, TIM1 kanal 1 ve fiziksel PE9 çıkışı elektriksel olarak
+doğrulandı. Tek seferlik STM32CubeProgrammer yazma işlemi sonrasında normal firmware
+güvenlik döngüsü duty'yi tekrar sıfırladığı için kararlı osiloskop ölçümü, çekirdek
+`BTS_SetDuty()` içindeki CCR1 yazmasından hemen sonra durdurularak ve TIM1 serbest
+çalıştırılarak alındı. Bu davranış bir PWM arızası değil, normal güvenli-kapalı
+davranışıdır. Ölçüm sonunda STM32 USB'den ayrıldı; kart enerjisiz ve PWM kapalıdır.
+
 ---
 
 ## 9. Sistem analizi
@@ -653,10 +700,30 @@ CubeMX yapılandırmasına dönülür (§14.3).
   fiziksel bobin testi yapılmadı.
 - Sensör karakterizasyonu (§8), kararlılık analizi (§9), hızlı sensör kararı (§10)
 - Komut satırı derleme/yükleme/okuma zinciri (`tools/`)
+- **PE9 / TIM1_CH1 fiziksel PWM doğrulaması:** FNIRSI 1014D ile 20 kHz, %50 duty;
+  multimetre DC ortalaması 1.478 V (§8.5)
 
 ### ⏳ Sıradaki iş
 
-**1. Sert düz plaka / estimator testi.** Esnek kartonla alınan ölçüm iptal edildi.
+**1. BTS7960 yüksüz bağlantı ve çıkış testi — mevcut fiziksel durak.** Bobin olmadığı
+için yalnız lojik girişler, enable, yüksüz M+/M− anahtarlaması ve güvenli kapanma
+doğrulanabilir; R/L, yük akımı, IS bant genişliği ve ısınma doğrulanamaz.
+
+2026-08-30 sonunda güç verilmeden kullanıcı tarafından doğrulanan bağlantılar:
+
+- BTS7960 kontrol `GND` → breadboard ortak GND
+- STM32 `GND` → aynı ortak GND
+- `PE9` → `RPWM`, bu noktadan GND'ye 10 kΩ pull-down
+- `PE8` → `LPWM`, bu noktadan GND'ye 10 kΩ pull-down
+
+Henüz tamamlandığı doğrulanmayan bağlantılar: `PE7 → R_EN+L_EN` ve 10 kΩ pull-down,
+STM32 `5V → VCC`, `R_IS → PA1` ve GND'ye 2.2 kΩ, U203 `+ → B+`, U203
+`− → B− + ortak GND`. `M+`/`M−` bobin olmadığı için boş kalacak. 100 kΩ üst
+direnç olmadığı için VBUS bölücüsü ve `PB1` bağlanmayacak; ekrandaki `g_vbus_v`
+geçerli kabul edilmeyecek. Sonraki oturumda güç vermeden önce multimetreyle kısa
+devre/süreklilik kontrolü yapılmalı. U203 OUTPUT bu kontroller bitene kadar kapalı kalmalı.
+
+**2. Sert düz plaka / estimator testi.** Esnek kartonla alınan ölçüm iptal edildi.
 Dört sensörü örten sert bir plakayla sırasıyla:
 - paralel yaklaşma/uzaklaşmada esas olarak heave'in değiştiğini,
 - sol taraf geometrik olarak yukarıdayken `g_roll_mrad` değerinin **pozitif** olduğunu,
@@ -667,7 +734,8 @@ Roll işareti PID'den önce mutlaka fiziksel olarak kanıtlanmalı; ters işaret
 beslemeye dönüşüp sistemi devirebilir. Breadboard geometrisi gerçek `GEOM_*` değerleri
 olmadığı için bu aşamada açıların yalnız işaretine güvenin, büyüklüğüne değil.
 
-**2. Bobin R/L testi** (kritik yolda). Tek kanal BTS7960 + bus bölücüsü bağlanınca:
+**3. Bobin R/L testi** (kritik yolda, şu an bobin ve 100 kΩ direnç eksik). Tek kanal
+BTS7960 + bus bölücüsü bağlanınca:
 firmware yüklenir, mavi butona basılı tutarak reset atılır, `g_coil_cap` (4096 halfword)
 SWD ile çekilir, python'da eğri oturtulur. Çıkacaklar:
 - **gerçek R ve L** (hesaplanan 1.9 Ω / 32 mH doğru mu)
@@ -684,6 +752,9 @@ Bu testin sonucu §13'teki iki kararı (hava aralığı, PWM frekansı) birden �
 |---|---|
 | Hava aralığı 3 mm mi 5 mm mi | R/L testinden sonra (§9.3 — 3 mm öneriliyor) |
 | PWM frekansı 20 kHz mi 5 kHz mi | R/L testinden sonra (§10.3) |
+| BTS7960 yüksüz bağlantı/çıkış testi | Kısmen kablolandı; güç verilmedi, sonraki fiziksel adım (§12) |
+| Bobin R/L karakterizasyonu | Bobin tezgâhta yok; test başlatılamaz |
+| VBUS 100 kΩ / 10 kΩ bölücüsü | 100 kΩ direnç yok; PB1 bağlanmadı |
 | ToF ofset kalibrasyonu (~5 mm) | Yapılmadı |
 | Şasi sensör aralıkları (`GEOM_*`) | Ölçülmedi, 400×300 mm varsayım |
 | Sert plaka ile heave/roll/pitch ve 3-sensör failover | Yapılmadı; sıradaki sensör testi (§12) |
