@@ -105,14 +105,6 @@ void Error_Handler(void);
 #define BOOT1_GPIO_Port GPIOB
 #define EN_FL_Pin GPIO_PIN_7
 #define EN_FL_GPIO_Port GPIOE
-#define LPWM_FL_Pin GPIO_PIN_8
-#define LPWM_FL_GPIO_Port GPIOE
-#define LPWM_FR_Pin GPIO_PIN_10
-#define LPWM_FR_GPIO_Port GPIOE
-#define LPWM_RL_Pin GPIO_PIN_12
-#define LPWM_RL_GPIO_Port GPIOE
-#define LPWM_RR_Pin GPIO_PIN_15
-#define LPWM_RR_GPIO_Port GPIOE
 #define CLK_IN_Pin GPIO_PIN_10
 #define CLK_IN_GPIO_Port GPIOB
 #define LD4_Pin GPIO_PIN_12

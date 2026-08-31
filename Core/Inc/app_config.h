@@ -81,11 +81,11 @@ extern I2C_HandleTypeDef hi2c1;
 
    Kanal sirasi her yerde ayni: 0=FL, 1=FR, 2=RL, 3=RR (GAP_CH_* ile ortak).
 
-     kanal   RPWM (TIM1)   LPWM (GPIO)   EN (R_EN+L_EN kopru)   IS (ADC1)
-     FL      PE9  CH1      PE8           PE7                    PA1  IN1
-     FR      PE11 CH2      PE10          PE2                    PA2  IN2
-     RL      PE13 CH3      PE12          PE5                    PA3  IN3
-     RR      PE14 CH4      PE15          PE6                    PB0  IN8
+     kanal   RPWM (TIM1)   LPWM           EN (R_EN+L_EN kopru)   IS (ADC1)
+     FL      PE9  CH1      GND            PE7                    PA1  IN1
+     FR      PE11 CH2      GND            PE2                    PA2  IN2
+     RL      PE13 CH3      GND            PE5                    PA3  IN3
+     RR      PE14 CH4      GND            PE6                    PB0  IN8
                                                         VBUS -> PB1  IN9
 
    NOT: PE0 KULLANILMAZ -- DISC1'de ivmeolcerin INT1 cikisina baglidir.
@@ -97,8 +97,6 @@ extern I2C_HandleTypeDef hi2c1;
    kaynagidir. Pin degisirse burasi kendiliginden takip eder. */
 #define BTS_EN_PORTS            { EN_FL_GPIO_Port,   EN_FR_GPIO_Port,                                     EN_RL_GPIO_Port,   EN_RR_GPIO_Port   }
 #define BTS_EN_PINS             { EN_FL_Pin,         EN_FR_Pin,                                           EN_RL_Pin,         EN_RR_Pin         }
-#define BTS_LPWM_PORTS          { LPWM_FL_GPIO_Port, LPWM_FR_GPIO_Port,                                   LPWM_RL_GPIO_Port, LPWM_RR_GPIO_Port }
-#define BTS_LPWM_PINS           { LPWM_FL_Pin,       LPWM_FR_Pin,                                         LPWM_RL_Pin,       LPWM_RR_Pin       }
 #define BTS_PWM_CHANNELS        { TIM_CHANNEL_1, TIM_CHANNEL_2, \
                                   TIM_CHANNEL_3, TIM_CHANNEL_4 }
 
@@ -111,8 +109,6 @@ extern I2C_HandleTypeDef hi2c1;
 /* Tek kanalli testler (coil_test) icin FL takma adlari */
 #define BTS_RPWM_PORT           GPIOE
 #define BTS_RPWM_PIN            GPIO_PIN_9    /* TIM1_CH1, AF1 */
-#define BTS_LPWM_PORT           LPWM_FL_GPIO_Port
-#define BTS_LPWM_PIN            LPWM_FL_Pin
 #define BTS_EN_PORT             EN_FL_GPIO_Port
 #define BTS_EN_PIN              EN_FL_Pin
 

@@ -5,10 +5,9 @@
   *
   * Kanal indeksleri GAP_CH_* ile ayni: 0=FL, 1=FR, 2=RL, 3=RR.
   *
-  * Tek yonlu surus: RPWM = TIM1 CHx (PWM), LPWM = LOW. Bobin akiminin isareti
-  * onemsizdir -- kuvvet F = B^2*A/mu0 oldugundan her iki yonde de cekme olur.
-  * LPWM'i MCU kontrolunde tutuyoruz, cunku ileride hizli akim sondurme
-  * (fast decay) icin kisa sureli ters surus gerekebilir.
+  * Tek yonlu surus: RPWM = TIM1 CHx (PWM), LPWM = donanimda GND. Bobin
+  * akiminin isareti onemsizdir -- kuvvet F = B^2*A/mu0 oldugundan her iki
+  * yonde de cekme olur. Kartta ters surus yolu bulunmaz.
   *
   * FAIL-SAFE ilkesi (sartname 3.p / 3.s / 3.t):
   *   - Cikislar boot'ta LOW, EN pinlerinde donanim pull-down var.
@@ -25,11 +24,11 @@ extern "C" {
 
 #include "app_config.h"
 
-/* MX_TIM1_Init'ten SONRA cagrilir. PWM'i baslatir, tum duty'leri sifirlar,
-   EN ve LPWM pinlerini LOW'a ceker. */
+/* MX_TIM1_Init'ten SONRA cagrilir. PWM'i baslatir, tum duty'leri sifirlar
+   ve EN pinlerini LOW'a ceker. */
 HAL_StatusTypeDef BTS_Init(void);
 
-/* FAIL-SAFE cikis. Duty=0, EN=LOW, LPWM=LOW. Kesme icinden cagrilabilir,
+/* FAIL-SAFE cikis. Duty=0, EN=LOW. Kesme icinden cagrilabilir,
    blok etmez, hata dondurmez -- her kosulda calismak zorundadir. */
 void BTS_AllOff(void);
 

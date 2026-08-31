@@ -38,16 +38,14 @@ static void gpio_init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
-  /* Enable ve LPWM: cikis, baslangicta LOW (surucu pasif) */
+  /* Enable: cikis, baslangicta LOW (surucu pasif). LPWM donanimda GND. */
   g.Mode  = GPIO_MODE_OUTPUT_PP;
   g.Pull  = GPIO_NOPULL;
   g.Speed = GPIO_SPEED_FREQ_LOW;
 
-  g.Pin = BTS_EN_PIN;   HAL_GPIO_Init(BTS_EN_PORT,   &g);
-  g.Pin = BTS_LPWM_PIN; HAL_GPIO_Init(BTS_LPWM_PORT, &g);
+  g.Pin = BTS_EN_PIN; HAL_GPIO_Init(BTS_EN_PORT, &g);
 
-  HAL_GPIO_WritePin(BTS_EN_PORT,   BTS_EN_PIN,   GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(BTS_LPWM_PORT, BTS_LPWM_PIN, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(BTS_EN_PORT, BTS_EN_PIN, GPIO_PIN_RESET);
 
   /* RPWM -> TIM1_CH1 */
   g.Mode      = GPIO_MODE_AF_PP;
@@ -163,8 +161,7 @@ static HAL_StatusTypeDef adc_init(void)
 void CoilTest_SafeOff(void)
 {
   __HAL_TIM_SET_COMPARE(&htim1_pwm, TIM_CHANNEL_1, 0);
-  HAL_GPIO_WritePin(BTS_EN_PORT,   BTS_EN_PIN,   GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(BTS_LPWM_PORT, BTS_LPWM_PIN, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(BTS_EN_PORT, BTS_EN_PIN, GPIO_PIN_RESET);
 }
 
 HAL_StatusTypeDef CoilTest_Init(void)

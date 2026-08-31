@@ -1,6 +1,6 @@
 # PID_Levo — Proje Devir Teslim Belgesi
 
-**Son güncelleme:** 2026‑08‑30
+**Son güncelleme:** 2026‑08‑31
 
 > Bu belge, projeyi hiç bilmeyen birinin (veya yeni bir sohbet oturumunun) sıfırdan
 > devralabilmesi için yazıldı. Sırayla okunduğunda: ne yapıldığı, neden öyle yapıldığı,
@@ -85,6 +85,7 @@ tools/
   build.sh                  komut satırı derleme
   read_vars.py              SWD ile canlı değişken okuma
 ozet.md                     bu belge
+pinout.md                   kesin pin ve kart bağlantı tablosu
 levoSartname.md             yarışma şartnamesi
 ```
 
@@ -114,10 +115,10 @@ StateMachine → BTS7960 (çıkış) + CurrentSense (geri besleme) + IWDG
 
 ```
 kanal   RPWM (TIM1)   LPWM      EN (R_EN+L_EN köprü)   IS (ADC1)
-FL      PE9   CH1     PE8       PE7                    PA1  IN1
-FR      PE11  CH2     PE10      PE2                    PA2  IN2
-RL      PE13  CH3     PE12      PE5                    PA3  IN3
-RR      PE14  CH4     PE15      PE6                    PB0  IN8
+FL      PE9   CH1     GND       PE7                    PA1  IN1
+FR      PE11  CH2     GND       PE2                    PA2  IN2
+RL      PE13  CH3     GND       PE5                    PA3  IN3
+RR      PE14  CH4     GND       PE6                    PB0  IN8
                                                 VBUS → PB1  IN9
 
 I2C1     PB6 (SCL) / PB9 (SDA)  — 400 kHz
@@ -129,14 +130,15 @@ Buton    PA0 (B1)
 **PE0 KULLANILMAZ** — DISC1'de ivmeölçerin INT1 çıkışına bağlı, kendi çıkışımızı koyarsak
 iki sürücü çakışır. `EN_FL` bu yüzden PE7'de.
 
-`R_EN` ve `L_EN` modül üzerinde köprülenip tek MCU pinine bağlanır: 8 pin yerine 4 pin gider,
-L_EN'in açık kalması serbest geçiş yolunu kapatmaz.
+`R_EN` ve `L_EN` modül üzerinde köprülenip tek MCU pinine bağlanır: 8 pin yerine 4 pin gider
+ve iki yarım köprü birlikte etkinleşir/kapanır. Sistem tek yönlü sürüleceği için `LPWM`
+STM32'ye bağlanmaz, kart üzerinde doğrudan GND'ye bağlanır. PE8/PE10/PE12/PE15 boştur.
 
 ### BTS7960 kablolaması (kanal başına, örnek FL)
 
 ```
 PE9  ───────────────────  RPWM
-PE8  ───────────────────  LPWM
+GND  ───────────────────  LPWM
 PE7  ──┬────────────────  R_EN
        └────────────────  L_EN
 PA1  ───────────────────  R_IS ──┬── 2.2 kΩ ── GND   (bu direnç ŞART)
@@ -152,9 +154,9 @@ Güç tarafı: B+/B- → 8S LiFePO4 (SİGORTALI), M+/M- → bobin
 
 ### Bobine akım vermeden önce ŞART olanlar
 
-1. `R_EN`, `L_EN`, `RPWM`, `LPWM` hatlarına GND'ye **10 kΩ pull‑down**.
+1. Ortak `R_EN+L_EN` ve `RPWM` hatlarına GND'ye **10 kΩ pull‑down**.
    STM32 reset ve programlama sırasında tüm GPIO'lar yüksek empedanslı girişe döner;
-   pull‑down olmadan sürücünün durumu belirsizdir.
+   pull‑down olmadan sürücünün durumu belirsizdir. `LPWM` doğrudan GND'dir ve pull-down gerekmez.
 2. B+ hattına **10–15 A sigorta**. Yazılım aborte edemezse tek koruma budur.
 3. Bobinin DC direncini multimetreyle ölçmek — IS pininin mutlak kalibrasyonu buradan çıkar.
 
@@ -187,7 +189,7 @@ okumada kanal değiştirmek gerekirdi). `ADR/COM3` pini LOW → adres 0x28. HIGH
 - **ADC1**: 5 kanal tarama (IN1, IN2, IN3, IN8, IN9), 28 cycle, PCLK2/4,
   **Continuous=Disabled**, harici tetik **T2_TRGO** yükselen kenar, DMA sürekli istek
 - **DMA2_Stream0**: ADC1 → dairesel, half‑word, MemInc
-- **GPIO**: MUX_RST + 12 adet BTS7960 hattı (hepsi pull‑down, boot'ta LOW)
+- **GPIO/PWM**: 4 RPWM (TIM1) + 4 ortak EN; PE8/PE10/PE12/PE15 serbest, LPWM'ler donanımda GND
 - Kalıntı: I2S3, SPI1, USB_HOST hâlâ etkin (temizlenmedi, zarar vermiyor)
 
 **Generate Code her an güvenle çalıştırılabilir.** Elle düzenlenen üretilmiş dosya kalmadı.
@@ -659,6 +661,8 @@ Bu **doğru davranış**: gerilimini ölçemediği bir donanımda levitasyona iz
 `BTS_AllOff()` her hata yolunda çağrılır, kesme içinden güvenlidir, hata döndürmez.
 Sıra önemli: önce CCR sıfırlanır, sonra EN düşer.
 `BTS_DUTY_MAX = 0.95` — %100'de yüksek yan sürücünün bootstrap kondansatörü dolamaz.
+Tek yönlü kart kararıyla dört `LPWM` girişi doğrudan GND'ye bağlandı; sürücü ve bobin test
+kodu artık LPWM GPIO makrolarına bağlı değil. CubeMX'te PE8/PE10/PE12/PE15 serbest bırakıldı.
 
 `current_sense` 5 kanalı 40 kHz'de dairesel DMA ile okur, tamponu doğrudan okur.
 `CS_ZeroCalibrate()` çıkışlar kapalıyken sıfır noktasını ölçer (~200 ms).
@@ -702,6 +706,9 @@ CubeMX yapılandırmasına dönülür (§14.3).
 - Komut satırı derleme/yükleme/okuma zinciri (`tools/`)
 - **PE9 / TIM1_CH1 fiziksel PWM doğrulaması:** FNIRSI 1014D ile 20 kHz, %50 duty;
   multimetre DC ortalaması 1.478 V (§8.5)
+- **BTS7960 kart pin planı donduruldu (2026-08-31):** dört RPWM TIM1'de, dört ortak EN GPIO,
+  dört R_IS ADC1'de; LPWM'ler doğrudan GND. `pinout.md`, `.ioc` ve firmware eşitlendi,
+  Generate Code sonrası uyarısız derleme doğrulandı.
 
 ### ⏳ Sıradaki iş
 
@@ -714,7 +721,8 @@ doğrulanabilir; R/L, yük akımı, IS bant genişliği ve ısınma doğrulanama
 - BTS7960 kontrol `GND` → breadboard ortak GND
 - STM32 `GND` → aynı ortak GND
 - `PE9` → `RPWM`, bu noktadan GND'ye 10 kΩ pull-down
-- `PE8` → `LPWM`, bu noktadan GND'ye 10 kΩ pull-down
+- `PE8` → `LPWM` geçici tezgâh bağlantısı 2026-08-31'de terk edildi. Son kartta ve sonraki
+  tezgâh kurulumunda `LPWM` doğrudan GND'ye bağlanacak; PE8 kullanılmayacak.
 
 Henüz tamamlandığı doğrulanmayan bağlantılar: `PE7 → R_EN+L_EN` ve 10 kΩ pull-down,
 STM32 `5V → VCC`, `R_IS → PA1` ve GND'ye 2.2 kΩ, U203 `+ → B+`, U203
@@ -752,7 +760,9 @@ Bu testin sonucu §13'teki iki kararı (hava aralığı, PWM frekansı) birden �
 |---|---|
 | Hava aralığı 3 mm mi 5 mm mi | R/L testinden sonra (§9.3 — 3 mm öneriliyor) |
 | PWM frekansı 20 kHz mi 5 kHz mi | R/L testinden sonra (§10.3) |
-| BTS7960 yüksüz bağlantı/çıkış testi | Kısmen kablolandı; güç verilmedi, sonraki fiziksel adım (§12) |
+| BTS7960 pin planı / CubeMX | Tamamlandı: RPWM=TIM1, LPWM=GND, ortak EN GPIO, R_IS=ADC1; Generate Code ve derleme temiz |
+| BTS7960 yüksüz bağlantı/çıkış testi | Pin planı hazır; yeni LPWM=GND düzeniyle güç verilmeden yeniden kablolanacak (§12) |
+| R_IS ADC giriş koruması | PCB şematiğinden önce kesinleştirilecek; 2.2 kΩ ölçüm direnci yanında 3.3 V koruması gerekli |
 | Bobin R/L karakterizasyonu | Bobin tezgâhta yok; test başlatılamaz |
 | VBUS 100 kΩ / 10 kΩ bölücüsü | 100 kΩ direnç yok; PB1 bağlanmadı |
 | ToF ofset kalibrasyonu (~5 mm) | Yapılmadı |

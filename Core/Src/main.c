@@ -467,8 +467,8 @@ int main(void)
      YENIDEN programlar (TIM2'yi 100 kHz'e ceker). Bu yuzden yalnizca test
      gercekten istendiginde cagrilir; her acilista cagrilmasi normal
      calismadaki ADC tetigini bozuyordu. Cikislar bu noktada zaten pasif:
-     MX_GPIO_Init tum EN/LPWM pinlerini LOW olarak kurdu ve donanimda
-     pull-down var. */
+     MX_GPIO_Init tum EN pinlerini LOW olarak kurdu ve donanimda pull-down
+     var. LPWM girisleri kartta dogrudan GND'ye baglidir. */
   if ((HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_SET) ||
       (g_coil_arm == 0xA5U))
   {
@@ -1103,8 +1103,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, EN_FR_Pin|CS_I2C_SPI_Pin|EN_RL_Pin|EN_RR_Pin
-                          |EN_FL_Pin|LPWM_FL_Pin|LPWM_FR_Pin|LPWM_RL_Pin
-                          |LPWM_RR_Pin, GPIO_PIN_RESET);
+                          |EN_FL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(MUX_RST_GPIO_Port, MUX_RST_Pin, GPIO_PIN_SET);
@@ -1116,10 +1115,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin
                           |Audio_RST_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : EN_FR_Pin EN_RL_Pin EN_RR_Pin EN_FL_Pin
-                           LPWM_FL_Pin LPWM_FR_Pin LPWM_RL_Pin LPWM_RR_Pin */
-  GPIO_InitStruct.Pin = EN_FR_Pin|EN_RL_Pin|EN_RR_Pin|EN_FL_Pin
-                          |LPWM_FL_Pin|LPWM_FR_Pin|LPWM_RL_Pin|LPWM_RR_Pin;
+  /*Configure GPIO pins : EN_FR_Pin EN_RL_Pin EN_RR_Pin EN_FL_Pin */
+  GPIO_InitStruct.Pin = EN_FR_Pin|EN_RL_Pin|EN_RR_Pin|EN_FL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

@@ -11,8 +11,6 @@ extern TIM_HandleTypeDef htim1;
 
 static GPIO_TypeDef *const s_en_port[BTS_CH_COUNT]   = BTS_EN_PORTS;
 static const uint16_t      s_en_pin[BTS_CH_COUNT]    = BTS_EN_PINS;
-static GPIO_TypeDef *const s_lpwm_port[BTS_CH_COUNT] = BTS_LPWM_PORTS;
-static const uint16_t      s_lpwm_pin[BTS_CH_COUNT]  = BTS_LPWM_PINS;
 static const uint32_t      s_pwm_ch[BTS_CH_COUNT]    = BTS_PWM_CHANNELS;
 
 static float   s_duty[BTS_CH_COUNT];
@@ -53,8 +51,7 @@ void BTS_AllOff(void)
   }
   for (ch = 0U; ch < BTS_CH_COUNT; ch++)
   {
-    HAL_GPIO_WritePin(s_en_port[ch],   s_en_pin[ch],   GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(s_lpwm_port[ch], s_lpwm_pin[ch], GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(s_en_port[ch], s_en_pin[ch], GPIO_PIN_RESET);
   }
   s_enabled = 0U;
 }
@@ -86,7 +83,6 @@ void BTS_Enable(void)
   {
     write_ccr(ch, 0U);
     s_duty[ch] = 0.0f;
-    HAL_GPIO_WritePin(s_lpwm_port[ch], s_lpwm_pin[ch], GPIO_PIN_RESET);
   }
   for (ch = 0U; ch < BTS_CH_COUNT; ch++)
   {
